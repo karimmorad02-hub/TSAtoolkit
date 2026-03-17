@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: dinocrates
+  name: drts-elp-cpu #-cpu
+  labels:
+    app: drts-elp-cpu #-cpu
+    kueue.x-k8s.io/queue-name:  dgx-h100-queue #rtx-3070-queue # dgx-a100-queue rtx-3070-queue
+    kueue.x-k8s.io/priority-class: high-priority
+spec:
+  parallelism: 1
+  completions: 1
+  backoffLimit: 4
+  suspend: true # must be set to true to work with Kueue
+  ttlSecondsAfterFinished: 0
+  template:
+    metadata:
+        labels:
+          app: drts-elp-cpu #-cpu
+          batch.kubernetes.io/job-name: drts-ts-cpu #-cpu
+          job-name: drts-elp-cpu #-cpu
+    spec:
+      securityContext:
+        fsGroup: 14500
+        fsGroupChangePolicy: "OnRootMismatch"
+      containers:
+      - name: drts-elp-cpu #-cpu
+        image: ubuntu:latest #docker.aic.gov.eg/dr/nlp_docmt_cuda@sha256:ebb1ee25b94cffc7667f3d91ae565563bec2ca346a8a2585577be0a41a60ccff #docker.aic.gov.eg/dr/nlp_docmt@sha256:b4e5921bd471d6b806c79ca7cb982f1a075b48893ffd2132df346fcb5a218a15 # docker.aic.gov.eg/dr/nlp_docmt_cuda@sha256:0f4b167d12ba18dcd8fc4244136170928dc7bb1879ec7f04e430ca4d2ffc74c8         #args: [""]
+        command: ["/bin/sh"]
+        args: ["-c", "service ssh restart; sleep infinity"] # cd /home/dr-nfs/storage/selkordi/quantization/DR_Quantization; python qat_train.py --config configs/qat_train.json &&
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 14502
+          runAsGroup: 14500
+        stdin: true
+        tty: true
+        volumeMounts:
+          - name: dinocrates-nfs
+            mountPath: /home/dinocrates-nfs
+          - name: dshm
+            mountPath: /dev/shm
+        resources:
+          requests:
+            cpu: "5"
+            memory: "50Gi"
+            nvidia.com/gpu: "0"
+          limits:
+            cpu: "5"
+            memory: "50Gi"
+            nvidia.com/gpu: "0"
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+      restartPolicy: Never
+      volumes:
+        - name: dinocrates-nfs
+          persistentVolumeClaim:
+            claimName: dinocrates-nfs-pvc
+        - name: dshm
+          emptyDir:
+            medium: Memory
+      imagePullSecrets:
+        - name: dinocrates-docker-user #check the name of the secret in the cluster sent by Fawzi
