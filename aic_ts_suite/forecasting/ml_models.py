@@ -41,14 +41,21 @@ class XGBoostForecaster(BaseForecaster):
 
     Parameters
     ----------
-    lags : list[int] | range
-        Autoregressive lag steps (default ``1..12``).
-    rolling_windows : list[int]
+    lags : int | list[int] | range
+        Autoregressive lag steps.  An *int* is interpreted as
+        ``range(1, lags + 1)``.
+    rolling_windows : int | list[int]
         Rolling window sizes for mean/std features.
-    fourier_K : int
+    fourier_k : int
         Number of Fourier harmonic pairs (0 = disabled).
     fourier_period : float
         Period for Fourier features.
+    n_estimators : int
+        Number of boosting rounds.
+    learning_rate : float
+        Shrinkage factor.
+    max_depth : int
+        Maximum tree depth.
     xgb_params : dict, optional
         Extra keyword arguments forwarded to ``XGBRegressor``.
     """
@@ -57,16 +64,26 @@ class XGBoostForecaster(BaseForecaster):
 
     def __init__(
         self,
-        lags: Union[List[int], range] = range(1, 13),
-        rolling_windows: Union[List[int], range] = (3, 6, 12),
-        fourier_K: int = 0,
+        lags: Union[int, List[int], range] = range(1, 13),
+        rolling_windows: Union[int, List[int], range] = (3, 6, 12),
+        fourier_k: int = 0,
         fourier_period: float = 12.0,
+        n_estimators: int = 300,
+        learning_rate: float = 0.05,
+        max_depth: int = 5,
         xgb_params: Optional[Dict] = None,
     ) -> None:
-        self.lags = list(lags)
-        self.rolling_windows = list(rolling_windows)
-        self.fourier_K = fourier_K
+        self.lags = list(range(1, lags + 1)) if isinstance(lags, int) else list(lags)
+        self.rolling_windows = (
+            list(range(1, rolling_windows + 1))
+            if isinstance(rolling_windows, int)
+            else list(rolling_windows)
+        )
+        self.fourier_k = fourier_k
         self.fourier_period = fourier_period
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.max_depth = max_depth
         self._xgb_params = xgb_params or {}
 
         self._model = None
@@ -85,7 +102,7 @@ class XGBoostForecaster(BaseForecaster):
             series,
             lags=self.lags,
             rolling_windows=self.rolling_windows,
-            fourier_K=self.fourier_K,
+            fourier_k=self.fourier_k,
             fourier_period=self.fourier_period,
             drop_na=True,
         )
@@ -110,9 +127,9 @@ class XGBoostForecaster(BaseForecaster):
 
         # Point model
         self._model = XGBRegressor(
-            n_estimators=300,
-            max_depth=5,
-            learning_rate=0.05,
+            n_estimators=self.n_estimators,
+            max_depth=self.max_depth,
+            learning_rate=self.learning_rate,
             random_state=CONFIG.random_state,
             verbosity=0,
             **self._xgb_params,
@@ -122,9 +139,9 @@ class XGBoostForecaster(BaseForecaster):
         # Quantile models for PI
         alpha = 1 - CONFIG.confidence_level
         self._model_lo = XGBRegressor(
-            n_estimators=300,
-            max_depth=5,
-            learning_rate=0.05,
+            n_estimators=self.n_estimators,
+            max_depth=self.max_depth,
+            learning_rate=self.learning_rate,
             objective="reg:quantileerror",
             quantile_alpha=alpha / 2,
             random_state=CONFIG.random_state,
@@ -133,9 +150,9 @@ class XGBoostForecaster(BaseForecaster):
         self._model_lo.fit(X, y)
 
         self._model_hi = XGBRegressor(
-            n_estimators=300,
-            max_depth=5,
-            learning_rate=0.05,
+            n_estimators=self.n_estimators,
+            max_depth=self.max_depth,
+            learning_rate=self.learning_rate,
             objective="reg:quantileerror",
             quantile_alpha=1 - alpha / 2,
             random_state=CONFIG.random_state,
@@ -201,7 +218,7 @@ class XGBoostForecaster(BaseForecaster):
             extra={
                 "lags": self.lags,
                 "rolling_windows": self.rolling_windows,
-                "fourier_K": self.fourier_K,
+                "fourier_k": self.fourier_k,
                 "n_features": len(self._feature_cols),
             },
         )

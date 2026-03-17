@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def lag_features(
     series: pd.Series,
-    lags: Union[List[int], range] = range(1, 13),
+    lags: Union[int, List[int], range] = range(1, 13),
     drop_na: bool = False,
 ) -> pd.DataFrame:
     """
@@ -30,8 +30,9 @@ def lag_features(
     ----------
     series : pd.Series
         Datetime-indexed numeric series.
-    lags : list[int] | range
-        Lag steps to create (e.g. ``[1, 2, 3, 6, 12]``).
+    lags : int | list[int] | range
+        If an *int*, interpreted as ``range(1, lags + 1)``.
+        Otherwise an explicit list / range of lag steps to create.
         Each lag *k* produces column ``lag_k`` equal to ``series.shift(k)``.
     drop_na : bool
         When *True*, drop rows that contain any NaN introduced by shifting.
@@ -44,10 +45,14 @@ def lag_features(
 
     Examples
     --------
-    >>> lags_df = lag_features(ts, lags=[1, 3, 6, 12])
+    >>> lags_df = lag_features(ts, lags=6)          # lags 1–6
+    >>> lags_df = lag_features(ts, lags=[1, 3, 12]) # explicit list
     >>> lags_df.head()
     """
-    lags = list(lags)
+    if isinstance(lags, int):
+        lags = list(range(1, lags + 1))
+    else:
+        lags = list(lags)
     data = {"y": series}
     for k in lags:
         data[f"lag_{k}"] = series.shift(k)
@@ -63,7 +68,7 @@ def lag_features(
 
 def rolling_lag_features(
     series: pd.Series,
-    windows: Union[List[int], range] = (3, 6, 12),
+    windows: Union[int, List[int], range] = (3, 6, 12),
     stats: Optional[List[str]] = None,
     drop_na: bool = False,
 ) -> pd.DataFrame:
@@ -100,7 +105,10 @@ def rolling_lag_features(
     if stats is None:
         stats = ["mean", "std"]
 
-    windows = list(windows)
+    if isinstance(windows, int):
+        windows = list(range(1, windows + 1))
+    else:
+        windows = list(windows)
     data: dict[str, pd.Series] = {}
 
     for w in windows:
@@ -125,11 +133,12 @@ def rolling_lag_features(
 
 def build_supervised_matrix(
     series: pd.Series,
-    lags: Union[List[int], range] = range(1, 13),
-    rolling_windows: Union[List[int], range] = (3, 6, 12),
+    lags: Union[int, List[int], range] = range(1, 13),
+    rolling_windows: Union[int, List[int], range] = (3, 6, 12),
     rolling_stats: Optional[List[str]] = None,
-    fourier_K: int = 0,
+    fourier_k: int = 0,
     fourier_period: float = 12.0,
+    seasonal_period: Optional[float] = None,
     drop_na: bool = True,
 ) -> pd.DataFrame:
     """
@@ -152,10 +161,13 @@ def build_supervised_matrix(
         Windows for rolling statistics.
     rolling_stats : list[str], optional
         Aggregation functions (default ``["mean", "std"]``).
-    fourier_K : int
+    fourier_k : int
         Number of Fourier harmonic pairs.  Set to 0 to skip.
     fourier_period : float
         Seasonal period for Fourier terms.
+    seasonal_period : float, optional
+        Alias for *fourier_period*.  When provided, overrides
+        *fourier_period*.
     drop_na : bool
         Remove rows with NaN (necessary before model training).
 
@@ -164,6 +176,9 @@ def build_supervised_matrix(
     pd.DataFrame
         Ready-to-train feature matrix with column ``y`` as the target.
     """
+    if seasonal_period is not None:
+        fourier_period = seasonal_period
+
     lag_df = lag_features(series, lags=lags, drop_na=False)
     roll_df = rolling_lag_features(
         series, windows=rolling_windows, stats=rolling_stats, drop_na=False
@@ -171,10 +186,10 @@ def build_supervised_matrix(
 
     parts = [lag_df, roll_df.drop(columns=[], errors="ignore")]
 
-    if fourier_K > 0:
+    if fourier_k > 0:
         from aic_ts_suite.features.fourier import fourier_terms
 
-        ft = fourier_terms(n=len(series), period=fourier_period, K=fourier_K)
+        ft = fourier_terms(n=len(series), period=fourier_period, K=fourier_k)
         ft.index = series.index
         parts.append(ft)
 
