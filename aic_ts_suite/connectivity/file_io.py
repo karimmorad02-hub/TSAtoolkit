@@ -15,6 +15,21 @@ from typing import List, Optional, Union
 
 import pandas as pd
 
+
+def _select_value_cols(
+    df: pd.DataFrame,
+    timestamp_col_normalised: str,
+    value_cols: Optional[Union[str, List[str]]],
+) -> pd.DataFrame:
+    """Retain only the requested value columns alongside the timestamp."""
+    if not value_cols:
+        return df
+    cols = [value_cols] if isinstance(value_cols, str) else list(value_cols)
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise KeyError(f"Requested value_cols not found in file: {missing}")
+    return df[[timestamp_col_normalised] + cols]
+
 logger = logging.getLogger(__name__)
 
 # Accepted extensions for directory scanning
@@ -27,7 +42,7 @@ _SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
 def read_csv(
     path: Union[str, Path],
     timestamp_col: str = "timestamp",
-    value_col: Optional[str] = None,
+    value_cols: Optional[Union[str, List[str]]] = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -39,19 +54,17 @@ def read_csv(
         File path (local or notebook upload).
     timestamp_col : str
         Name of the column containing timestamps.
-    value_col : str, optional
-        If provided, only keep this value column alongside the timestamp.
+    value_cols : str | list[str], optional
+        If provided, only keep these value columns alongside the timestamp.
+        Pass a single string or a list of strings.
     **kwargs
         Forwarded to ``pd.read_csv``.
     """
     df = pd.read_csv(path, parse_dates=[timestamp_col], **kwargs)
     df = df.rename(columns={timestamp_col: "timestamp"})
     df = df.sort_values("timestamp").reset_index(drop=True)
-
-    if value_col and value_col in df.columns:
-        df = df[["timestamp", value_col]]
-
-    logger.info("CSV loaded: %s (%d rows)", path, len(df))
+    df = _select_value_cols(df, "timestamp", value_cols)
+    logger.info("CSV loaded: %s (%d rows, %d cols)", path, len(df), len(df.columns))
     return df
 
 
@@ -62,7 +75,7 @@ def read_excel(
     path: Union[str, Path],
     sheet_name: Union[str, int] = 0,
     timestamp_col: str = "timestamp",
-    value_col: Optional[str] = None,
+    value_cols: Optional[Union[str, List[str]]] = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -76,8 +89,9 @@ def read_excel(
         Sheet to read (name or zero-based index).
     timestamp_col : str
         Name of the column containing timestamps.
-    value_col : str, optional
-        If provided, only keep this value column alongside the timestamp.
+    value_cols : str | list[str], optional
+        If provided, only keep these value columns alongside the timestamp.
+        Pass a single string or a list of strings.
     **kwargs
         Forwarded to ``pd.read_excel``.
     """
@@ -86,11 +100,8 @@ def read_excel(
     )
     df = df.rename(columns={timestamp_col: "timestamp"})
     df = df.sort_values("timestamp").reset_index(drop=True)
-
-    if value_col and value_col in df.columns:
-        df = df[["timestamp", value_col]]
-
-    logger.info("Excel loaded: %s (%d rows)", path, len(df))
+    df = _select_value_cols(df, "timestamp", value_cols)
+    logger.info("Excel loaded: %s (%d rows, %d cols)", path, len(df), len(df.columns))
     return df
 
 

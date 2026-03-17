@@ -6,6 +6,7 @@ Holds connection strings, default parameters, and traceability helpers.
 
 from __future__ import annotations
 
+import os
 import uuid
 from dataclasses import dataclass, field
 from typing import Optional
@@ -18,17 +19,31 @@ def new_correlation_id() -> str:
 
 @dataclass
 class TimescaleConfig:
-    """Connection parameters for TimescaleDB."""
+    """Connection parameters for TimescaleDB.
 
-    host: str = "10.20.0.10"
-    port: int = 5432
-    database: str = "tsdb"
-    user: str = "readonly"
-    password: str = ""
-    schema: str = "public"
+    Values are resolved from environment variables first, falling back to the
+    supplied defaults.  Set the variables below before running in production::
+
+        TSDB_HOST, TSDB_PORT, TSDB_DATABASE, TSDB_USER, TSDB_PASSWORD, TSDB_SCHEMA
+    """
+
+    host: str = field(default_factory=lambda: os.environ.get("TSDB_HOST", "localhost"))
+    port: int = field(default_factory=lambda: int(os.environ.get("TSDB_PORT", "5432")))
+    database: str = field(default_factory=lambda: os.environ.get("TSDB_DATABASE", "tsdb"))
+    user: str = field(default_factory=lambda: os.environ.get("TSDB_USER", "readonly"))
+    password: str = field(default_factory=lambda: os.environ.get("TSDB_PASSWORD", ""))
+    schema: str = field(default_factory=lambda: os.environ.get("TSDB_SCHEMA", "public"))
 
     @property
     def dsn(self) -> str:
+        return (
+            f"postgresql://{self.user}:***"
+            f"@{self.host}:{self.port}/{self.database}"
+        )
+
+    @property
+    def dsn_with_password(self) -> str:
+        """Full DSN including password – avoid logging this value."""
         return (
             f"postgresql://{self.user}:{self.password}"
             f"@{self.host}:{self.port}/{self.database}"

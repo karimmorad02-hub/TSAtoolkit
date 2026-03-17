@@ -7,7 +7,7 @@ from __future__ import annotations
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import pandas as pd
 
@@ -58,17 +58,22 @@ class BaseForecaster(ABC):
     name: str = "BaseForecaster"
 
     @abstractmethod
-    def fit(self, train: pd.Series, **kwargs) -> "BaseForecaster":
-        """Fit the model on a training series."""
+    def fit(
+        self, train: Union[pd.Series, pd.DataFrame], **kwargs
+    ) -> "BaseForecaster":
+        """Fit the model on a training series or DataFrame."""
 
     @abstractmethod
     def predict(self, horizon: int, **kwargs) -> ForecastResult:
         """Generate forecasts for *horizon* steps ahead."""
 
     def fit_predict(
-        self, train: pd.Series, horizon: int, **kwargs
+        self,
+        train: Union[pd.Series, pd.DataFrame],
+        horizon: int,
+        **kwargs,
     ) -> ForecastResult:
-        """Convenience: fit then predict, timing the full round-trip."""
+        """Convenience: fit then predict, recording wall-clock time."""
         t0 = time.perf_counter_ns()
         self.fit(train, **kwargs)
         result = self.predict(horizon, **kwargs)

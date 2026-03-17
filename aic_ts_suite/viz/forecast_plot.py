@@ -81,7 +81,10 @@ def plot_forecast(
 
     # KPI annotation box
     if kpis:
-        text_lines = [f"{k}: {v:.4f}" for k, v in kpis.items()]
+        text_lines = [
+            f"{k}: {v:.4f}" if isinstance(v, (int, float)) else f"{k}: {v}"
+            for k, v in kpis.items()
+        ]
         text_str = "\n".join(text_lines)
         props = dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="#bdc3c7", alpha=0.90)
         ax.text(

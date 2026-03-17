@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -33,8 +33,9 @@ class DataCleaner:
         Path to a CSV or Excel file.
     timestamp_col : str
         Name of the raw timestamp column.
-    value_col : str | None
-        Optional single value column to retain.
+    value_cols : str | list[str] | None
+        Optional column(s) to retain alongside the timestamp.  When *None*
+        all columns are kept.
     sheet_name : str | int
         Excel sheet (ignored for CSV).
     """
@@ -43,12 +44,12 @@ class DataCleaner:
         self,
         source: Union[str, Path],
         timestamp_col: str = "timestamp",
-        value_col: Optional[str] = None,
+        value_cols: Optional[Union[str, List[str]]] = None,
         sheet_name: Union[str, int] = 0,
     ) -> None:
         self._source = Path(source)
         self._ts_col = timestamp_col
-        self._val_col = value_col
+        self._val_cols = value_cols
         self._sheet = sheet_name
         self._df: Optional[pd.DataFrame] = None
 
@@ -62,14 +63,14 @@ class DataCleaner:
             self._df = read_csv(
                 self._source,
                 timestamp_col=self._ts_col,
-                value_col=self._val_col,
+                value_cols=self._val_cols,
             )
         elif ext in {".xlsx", ".xls"}:
             self._df = read_excel(
                 self._source,
                 sheet_name=self._sheet,
                 timestamp_col=self._ts_col,
-                value_col=self._val_col,
+                value_cols=self._val_cols,
             )
         else:
             raise ValueError(f"Unsupported file extension: {ext}")
@@ -123,4 +124,5 @@ class DataCleaner:
 
     def __repr__(self) -> str:  # pragma: no-cover
         rows = len(self._df) if self._df is not None else 0
-        return f"<DataCleaner source={self._source.name!r} rows={rows}>"
+        cols = list(self._df.columns) if self._df is not None else []
+        return f"<DataCleaner source={self._source.name!r} rows={rows} cols={cols}>"
