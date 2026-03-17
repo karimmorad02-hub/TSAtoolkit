@@ -61,4 +61,4 @@ spec:
           emptyDir:
             medium: Memory
       imagePullSecrets:
-        - name: dinocrates-docker-user #check the name of the secret in the cluster sent by Fawzi
+        - name: robot-dinocrates-docker-user #check the name of the secret in the cluster sent by Fawzi
