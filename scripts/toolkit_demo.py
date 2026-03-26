@@ -361,7 +361,7 @@ def save_test_run(exp_dir: Path, model_name: str, test: pd.Series, forecast: pd.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_data_pipeline(cfg: dict, log: logging.Logger) -> tuple[pd.DataFrame, pd.Series]:
-    """Load, subsample, clean, and return (clean_df, target_series)."""
+    """Load, subsample, clean, optionally enrich with weather, and return (clean_df, target_series)."""
     from aic_ts_suite.cleaning import sanitize
 
     dc = cfg["data"]
@@ -385,10 +385,68 @@ def run_data_pipeline(cfg: dict, log: logging.Logger) -> tuple[pd.DataFrame, pd.
              raw[dc["value_cols"]].isna().sum().to_dict())
 
     clean = sanitize(raw, strategy="interpolate")
+
+    # ── Weather enrichment ────────────────────────────────────────────────────
+    wc = cfg.get("weather", {})
+    if wc.get("enabled", False):
+        clean = _enrich_with_weather(clean, cfg, log)
+
     ts = clean.set_index("timestamp")[dc["target_col"]]
     ts.name = dc["target_col"]
     log.info("Clean shape: %s", clean.shape)
     return clean, ts
+
+
+def _enrich_with_weather(
+    df: pd.DataFrame,
+    cfg: dict,
+    log: logging.Logger,
+) -> pd.DataFrame:
+    """
+    Fetch weather data for the date range in *df* and merge it as extra columns.
+
+    Reads the ``weather`` section of *cfg*.  On any error the original
+    DataFrame is returned unchanged so the experiment can continue.
+    """
+    from aic_ts_suite.connectivity.weather import fetch_weather, merge_weather
+
+    wc = cfg["weather"]
+    freq = wc.get("resample_freq") or cfg["modelling"].get("freq", "MS")
+    prefix = wc.get("prefix", "weather_")
+
+    ts_col = df["timestamp"]
+    start_date = pd.to_datetime(ts_col.min()).date()
+    end_date = pd.to_datetime(ts_col.max()).date()
+
+    log.info(
+        "Fetching weather  lat=%.4f lon=%.4f  %s → %s  vars=%s",
+        wc["latitude"], wc["longitude"],
+        start_date, end_date, wc["variables"],
+    )
+
+    try:
+        weather_df = fetch_weather(
+            latitude=wc["latitude"],
+            longitude=wc["longitude"],
+            variables=wc["variables"],
+            start_date=str(start_date),
+            end_date=str(end_date),
+            source=wc.get("source", "archive"),
+            timeout=wc.get("timeout", 60),
+        )
+        if weather_df.empty:
+            log.warning("Weather fetch returned empty DataFrame — skipping enrichment.")
+            return df
+
+        enriched = merge_weather(df, weather_df, freq=freq, prefix=prefix)
+        new_cols = [c for c in enriched.columns if c.startswith(prefix)]
+        log.info("Weather enrichment complete: added %d columns: %s", len(new_cols), new_cols)
+        return enriched
+
+    except Exception as exc:
+        log.warning("Weather enrichment failed (%s: %s) — continuing without weather data.",
+                    type(exc).__name__, exc)
+        return df
 
 
 # ─────────────────────────────────────────────────────────────────────────────

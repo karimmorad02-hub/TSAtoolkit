@@ -22,6 +22,23 @@ data:
   target_col: "AT_load_actual_entsoe_transparency"
   max_rows: 5000            # null = use all rows; set an integer to subsample
 
+# ── Weather enrichment (Open-Meteo API — free, no key required) ───────────────
+# Based on: https://github.com/AntoinePinto/weather-data
+weather:
+  enabled: true
+  latitude: 47.8095         # Austria centroid (WGS84)
+  longitude: 13.0550
+  source: "archive"         # "archive" | "forecast" | "auto"
+  variables:                # Open-Meteo hourly variable names
+    - temperature_2m        # 2m air temperature (°C)
+    - precipitation         # total precipitation (mm/h, summed per period)
+    - wind_speed_10m        # 10m wind speed (km/h, averaged per period)
+    - snowfall              # snowfall (cm, summed per period)
+    - cloud_cover           # total cloud cover (%, averaged per period)
+  resample_freq: null       # null = inherit modelling.freq; or override e.g. "D"
+  prefix: "weather_"        # column prefix added to merged weather features
+  timeout: 60               # HTTP request timeout in seconds
+
 # ── Modelling ─────────────────────────────────────────────────────────────────
 modelling:
   horizon: 4*24*30               # forecast steps ahead (= test-set size)
