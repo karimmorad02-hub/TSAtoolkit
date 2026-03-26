@@ -267,6 +267,19 @@ def resample_weather(
 
 # ── Merge helper ──────────────────────────────────────────────────────────────
 
+def _to_utc_naive(ts) -> pd.Series:
+    """Convert a datetime Series or Index to UTC-naive (strips tz if present)."""
+    s = pd.to_datetime(ts)
+    if hasattr(s, "dt"):
+        if s.dt.tz is not None:
+            return s.dt.tz_convert("UTC").dt.tz_localize(None)
+        return s
+    else:  # Index
+        if s.tz is not None:
+            return s.tz_convert("UTC").tz_localize(None)
+        return s
+
+
 def merge_weather(
     main_df: pd.DataFrame,
     weather_df: pd.DataFrame,
@@ -275,10 +288,14 @@ def merge_weather(
     prefix: str = "weather_",
 ) -> pd.DataFrame:
     """
-    Join resampled weather features into *main_df*.
+    Join weather features into *main_df* using nearest-prior-match alignment.
 
-    The function resamples *weather_df* to *freq*, aligns on the
-    ``timestamp`` column (or index) of *main_df*, and merges.
+    For frequencies finer than hourly (e.g. 15-min) ``pd.merge_asof`` is used
+    so each data row receives the weather observation from the most recent
+    completed hour — no upsampling required and no NaN gaps.
+
+    For coarser frequencies (daily, monthly, etc.) the weather is first
+    downsampled with ``resample_weather`` before joining on index.
 
     Parameters
     ----------
@@ -287,9 +304,9 @@ def merge_weather(
     weather_df : pd.DataFrame
         Hourly weather DataFrame from ``fetch_weather()``.
     freq : str
-        Target frequency for resampling (must match main_df frequency).
+        Target frequency for resampling when downsampling is needed.
     how : str
-        Join type: "left" (default), "inner", "outer".
+        Join type for coarse-frequency index joins (default "left").
     prefix : str
         Column prefix added to all weather columns (default: "weather_").
 
@@ -298,29 +315,70 @@ def merge_weather(
     pd.DataFrame
         Merged DataFrame with weather columns appended.
     """
-    resampled = resample_weather(weather_df, freq)
-
-    # Rename weather columns with prefix to avoid collisions
-    resampled.columns = [f"{prefix}{c}" for c in resampled.columns]
+    # Determine whether data frequency is finer than hourly
+    # Try both old ("H") and new ("h") pandas aliases for robustness
+    try:
+        target_delta = pd.tseries.frequencies.to_offset(freq)
+        try:
+            hourly_delta = pd.tseries.frequencies.to_offset("h")
+        except Exception:
+            hourly_delta = pd.tseries.frequencies.to_offset("H")
+        is_sub_hourly = target_delta < hourly_delta  # type: ignore[operator]
+    except Exception:
+        is_sub_hourly = False
 
     has_ts_col = "timestamp" in main_df.columns
+
+    # Build UTC-naive weather table
+    w = weather_df.copy()
+    w.index = _to_utc_naive(w.index)
+    w_reset = w.reset_index()                        # → "timestamp" column
+    w_reset.columns = ["_w_ts"] + [f"{prefix}{c}" for c in w.columns]
+    w_reset = w_reset.sort_values("_w_ts").reset_index(drop=True)
+    prefixed_cols = [c for c in w_reset.columns if c.startswith(prefix)]
+
+    # Build UTC-naive main timestamps
     if has_ts_col:
-        idx = pd.to_datetime(main_df["timestamp"]).dt.tz_localize(None)
-        # Drop timestamp column so the index becomes the sole time reference
-        main_indexed = main_df.drop(columns=["timestamp"]).set_index(idx)
+        main_ts = _to_utc_naive(main_df["timestamp"])
     else:
+        main_ts = _to_utc_naive(pd.Series(main_df.index))
+
+    if is_sub_hourly:
+        # merge_asof: each 15-min row inherits the weather from the last hour
+        left = main_df.copy().reset_index(drop=True)
+        left["_m_ts"] = main_ts.values
+        left_sorted = left.sort_values("_m_ts").reset_index(drop=True)
+        orig_order = left.sort_values("_m_ts").index  # to restore original row order
+
+        merged_sorted = pd.merge_asof(
+            left_sorted,
+            w_reset,
+            left_on="_m_ts",
+            right_on="_w_ts",
+            direction="backward",
+        ).drop(columns=["_m_ts", "_w_ts"])
+
+        # Restore original row order
+        merged = merged_sorted.loc[orig_order.argsort()].reset_index(drop=True)
+
+    else:
+        # Downsample then index-join
+        resampled = resample_weather(weather_df, freq)
+        resampled.columns = [f"{prefix}{c}" for c in resampled.columns]
+        resampled.index = _to_utc_naive(resampled.index)
+
         main_indexed = main_df.copy()
-        main_indexed.index = pd.to_datetime(main_indexed.index).tz_localize(None)
+        if has_ts_col:
+            main_indexed = main_indexed.drop(columns=["timestamp"])
+        main_indexed.index = main_ts.values
+        merged = main_indexed.join(resampled, how=how).reset_index(drop=True)
 
-    merged = main_indexed.join(resampled, how=how)
+        if has_ts_col:
+            merged.insert(0, "timestamp", main_df["timestamp"].values)
 
-    if has_ts_col:
-        merged = merged.reset_index(drop=True)
-        merged.insert(0, "timestamp", main_df["timestamp"].values)
-
-    n_matched = merged[resampled.columns].notna().any(axis=1).sum()
+    n_matched = merged[prefixed_cols].notna().any(axis=1).sum()
     logger.info(
         "Weather merged: %d/%d rows matched (%d new cols)",
-        n_matched, len(merged), len(resampled.columns),
+        n_matched, len(merged), len(prefixed_cols),
     )
     return merged
