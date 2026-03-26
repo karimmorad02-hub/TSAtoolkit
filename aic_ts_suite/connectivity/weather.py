@@ -216,23 +216,51 @@ def resample_weather(
     """
     Resample hourly weather data to *freq* using sensible aggregations.
 
+    For downsampling (e.g. hourly → daily/monthly) each variable is
+    aggregated with the most appropriate function (sum for precipitation,
+    mean for temperature, etc.).
+
+    For upsampling (e.g. hourly → 15min) the data is reindexed to the
+    target frequency and forward-filled.
+
     Parameters
     ----------
     weather_df : pd.DataFrame
         Output of ``fetch_weather()`` (hourly, UTC DatetimeIndex).
     freq : str
-        Pandas offset alias, e.g. "D", "W", "MS", "QS", "YS".
+        Pandas offset alias, e.g. "15min", "30min", "H", "D", "MS".
 
     Returns
     -------
     pd.DataFrame
         Resampled weather features.
     """
-    agg = {
-        col: _DEFAULT_AGG.get(col, "mean")
-        for col in weather_df.columns
-    }
-    resampled = weather_df.resample(freq).agg(agg)
+    import pandas as pd
+
+    # Determine whether this is an up- or down-sample relative to hourly
+    try:
+        target_delta = pd.tseries.frequencies.to_offset(freq)
+        hourly_delta = pd.tseries.frequencies.to_offset("H")
+        is_upsample = target_delta < hourly_delta  # type: ignore[operator]
+    except Exception:
+        is_upsample = False
+
+    if is_upsample:
+        # Upsample: reindex to finer grid and forward-fill
+        new_idx = pd.date_range(
+            start=weather_df.index.min(),
+            end=weather_df.index.max(),
+            freq=freq,
+            tz=weather_df.index.tz,
+        )
+        resampled = weather_df.reindex(new_idx).ffill()
+    else:
+        agg = {
+            col: _DEFAULT_AGG.get(col, "mean")
+            for col in weather_df.columns
+        }
+        resampled = weather_df.resample(freq).agg(agg)
+
     resampled.index = resampled.index.tz_localize(None)  # strip UTC for merging
     return resampled
 
@@ -278,7 +306,8 @@ def merge_weather(
     has_ts_col = "timestamp" in main_df.columns
     if has_ts_col:
         idx = pd.to_datetime(main_df["timestamp"]).dt.tz_localize(None)
-        main_indexed = main_df.set_index(idx)
+        # Drop timestamp column so the index becomes the sole time reference
+        main_indexed = main_df.drop(columns=["timestamp"]).set_index(idx)
     else:
         main_indexed = main_df.copy()
         main_indexed.index = pd.to_datetime(main_indexed.index).tz_localize(None)

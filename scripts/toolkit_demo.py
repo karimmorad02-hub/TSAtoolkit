@@ -411,8 +411,17 @@ def _enrich_with_weather(
     from aic_ts_suite.connectivity.weather import fetch_weather, merge_weather
 
     wc = cfg["weather"]
-    freq = wc.get("resample_freq") or cfg["modelling"].get("freq", "MS")
     prefix = wc.get("prefix", "weather_")
+
+    # Infer actual data frequency from timestamps so weather resampling
+    # matches the raw data granularity (e.g. 15min), not the modelling freq.
+    explicit_freq = wc.get("resample_freq")
+    if explicit_freq:
+        freq = explicit_freq
+    else:
+        inferred = pd.infer_freq(pd.to_datetime(df["timestamp"]).head(20))
+        freq = inferred if inferred else cfg["modelling"].get("freq", "MS")
+        log.info("Weather resample freq auto-detected: %s", freq)
 
     ts_col = df["timestamp"]
     start_date = pd.to_datetime(ts_col.min()).date()
