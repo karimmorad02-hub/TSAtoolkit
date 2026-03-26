@@ -1,0 +1,83 @@
+# aic_ts_suite — Experiment Parameters
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage:  python scripts/toolkit_demo.py --params configs/params.yaml
+#         python scripts/toolkit_demo.py --params configs/params.yaml --resume
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Experiment identity ───────────────────────────────────────────────────────
+experiment:
+  name: "energy_forecast"          # used in folder names and log filenames
+  description: "Multi-model comparison on AT grid energy — 15-min data, daily freq"
+  tags: [energy, austria, multivariate, daily]
+  author: "dinocrates_team"
+
+# ── Data ─────────────────────────────────────────────────────────────────────
+data:
+  csv_path: "Data/time_series_15min_singleindex.csv"
+  timestamp_col: "utc_timestamp"
+  value_cols:
+    - AT_load_actual_entsoe_transparency
+    - AT_solar_generation_actual
+    - AT_wind_onshore_generation_actual
+  target_col: "AT_load_actual_entsoe_transparency"
+  max_rows: 5000            # null = use all rows; set an integer to subsample
+
+# ── Modelling ─────────────────────────────────────────────────────────────────
+modelling:
+  horizon: 4*24*30               # forecast steps ahead (= test-set size)
+  seasonal_period: 12       # dominant seasonal period
+  freq: "MS"                 # pandas DateOffset alias
+
+# ── Models ───────────────────────────────────────────────────────────────────
+models:
+  arima:
+    enabled: true
+    seasonal: true
+
+  ets:
+    enabled: true
+
+  holt_winters:
+    enabled: true
+    seasonal: "add"         # "add" | "mul"
+
+  xgboost:
+    enabled: true
+    n_estimators: 300
+    learning_rate: 0.05
+    max_depth: 5
+    lags: 12
+    rolling_windows: [3, 6, 12]
+    fourier_k: 4
+
+  prophet:
+    enabled: true
+    growth: "linear"
+    seasonality_mode: "additive"
+    yearly_seasonality: true
+    weekly_seasonality: false
+    daily_seasonality: false
+    changepoint_prior_scale: 0.05
+
+  var:
+    enabled: true
+    maxlags: 12
+    ic: "aic"               # information criterion for lag selection
+
+# ── Checkpoints ──────────────────────────────────────────────────────────────
+checkpoints:
+  enabled: true
+  keep_best_n: 3            # retain only the N best checkpoints by metric
+  metric: "RMSE"            # optimisation metric (lower = better)
+  sprint_interval: 2        # flush a sprint snapshot every N completed models
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"             # DEBUG | INFO | WARNING | ERROR
+  console: true             # stream to stdout
+  file: true                # write per-model log files under logs/
+
+# ── Output ───────────────────────────────────────────────────────────────────
+output:
+  plots: true               # save matplotlib figures to experiments/.../plots/
+  export_json: true         # write leaderboard.json + summary.json

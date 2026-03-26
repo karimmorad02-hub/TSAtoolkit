@@ -106,7 +106,7 @@ def compute_all_kpis(
         "RMSE": rmse(observed, forecast),
         "MAPE": mape(observed, forecast),
         "sMAPE": smape(observed, forecast),
-        "R²": r_squared(observed, forecast),
+        "R2": r_squared(observed, forecast),
     }
 
 

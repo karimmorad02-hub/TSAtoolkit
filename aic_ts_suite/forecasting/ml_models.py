@@ -299,7 +299,10 @@ class ProphetForecaster(BaseForecaster):
     @staticmethod
     def _to_prophet_df(series: pd.Series) -> pd.DataFrame:
         """Convert a datetime-indexed Series to Prophet's expected format."""
-        return pd.DataFrame({"ds": series.index, "y": series.values})
+        idx = series.index
+        if hasattr(idx, "tz") and idx.tz is not None:
+            idx = idx.tz_localize(None)
+        return pd.DataFrame({"ds": idx, "y": series.values})
 
     # ------------------------------------------------------------------
     # Fit
