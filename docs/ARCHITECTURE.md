@@ -63,7 +63,7 @@ How `ForecastResult` objects flow into `ModelComparison`, are scored with 5 KPIs
 
 Architecture of `scripts/toolkit_demo.py` — YAML-driven experiment orchestration with checkpointing, logging, and artifact management.
 
-[View on Excalidraw](https://excalidraw.com/#json=88fGPXBpQFJFO1ELsWg_5,g-Fy66Piq2guofY-Y7XsjQ)
+[View on Excalidraw](https://excalidraw.com/#json=15v3fu0fGzV0OJ_AB2p7N,RZ74uM9kbSdaVENfq2swLw)
 
 **Experiment folder structure:**
 ```
