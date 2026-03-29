@@ -8,7 +8,7 @@ Interactive architecture diagrams for the `aic_ts_suite` codebase. Each diagram 
 
 High-level view of all package modules organized by layer: Data Ingestion, Transform & Features, Forecasting Engine, and Evaluation & Output.
 
-[View on Excalidraw](https://excalidraw.com/#json=a5blIUJUD78UiTVCbamb6,VrheLTDzKk4MkWJv6KDdEA)
+[View on Excalidraw](https://excalidraw.com/#json=JRc6HIQ6JCYY6Hgb25AjN,SeNIBmzVCsEGjPgApUiVAg)
 
 **Layers:**
 - **Data Ingestion** (blue) — `config`, `connectivity`, `cleaning`
@@ -22,7 +22,7 @@ High-level view of all package modules organized by layer: Data Ingestion, Trans
 
 End-to-end data flow from ingestion sources (CSV, TimescaleDB, Open-Meteo) through cleaning, transformation, forecasting, and evaluation to final outputs.
 
-[View on Excalidraw](https://excalidraw.com/#json=Wm1XlAbL7sIsG33dnUE3-,120Sg8uUgJmQwRUMQqNM8Q)
+[View on Excalidraw](https://excalidraw.com/#json=I18_GDCG_l5pUvUtMCJi0,E6xdB-w-tVsSC-15W27bBg)
 
 **Flow:**
 ```
@@ -35,7 +35,7 @@ Data Sources -> DataCleaner -> Train/Test Split -> Transforms -> Features -> For
 
 Class hierarchy showing `BaseForecaster` ABC and all 9 concrete implementations across 4 paradigms.
 
-[View on Excalidraw](https://excalidraw.com/#json=tVo23jouQFqQMeIldFcWQ,4V0Oymt2x5v1U47ydoLRWw)
+[View on Excalidraw](https://excalidraw.com/#json=tDY3C33kFr8SUdz-bOU9Y,4kzK6aF-nYfq8lFbp1GMlA)
 
 **Model categories:**
 | Category | Models | Backend |
@@ -51,7 +51,7 @@ Class hierarchy showing `BaseForecaster` ABC and all 9 concrete implementations 
 
 How `ForecastResult` objects flow into `ModelComparison`, are scored with 5 KPIs, rendered as plots, and traced via `AnalyticsEngineClient`.
 
-[View on Excalidraw](https://excalidraw.com/#json=eMzvD1GTEYRAZG2GPDWvH,F8QKGJnuDd0xd9w8tF9RFA)
+[View on Excalidraw](https://excalidraw.com/#json=IbDEGJdWuz1y2huDydQpH,mN27lFRAjLwPyxtUoNNZ_Q)
 
 **Metrics:** MAE, RMSE, MAPE, sMAPE, R-squared
 
@@ -63,7 +63,7 @@ How `ForecastResult` objects flow into `ModelComparison`, are scored with 5 KPIs
 
 Architecture of `scripts/toolkit_demo.py` — YAML-driven experiment orchestration with checkpointing, logging, and artifact management.
 
-[View on Excalidraw](https://excalidraw.com/#json=uNF3GSqrFrNLvuQbmhtfS,LNFGlpCAF7ac2xG2iV3uBQ)
+[View on Excalidraw](https://excalidraw.com/#json=88fGPXBpQFJFO1ELsWg_5,g-Fy66Piq2guofY-Y7XsjQ)
 
 **Experiment folder structure:**
 ```
@@ -82,7 +82,7 @@ experiments/{name}_{timestamp}_{id}/
 
 Key software patterns used throughout the codebase: Fluent Builder, Strategy, Abstract Factory, Singleton, Visitor/Aggregator, and Correlation ID traceability.
 
-[View on Excalidraw](https://excalidraw.com/#json=qVIaaCcvIztImhsRRG_0r,l0S6mndV2qUgWsUJ3D-gSA)
+[View on Excalidraw](https://excalidraw.com/#json=NXa2eVvbfBptGZGBFDNb9,zXs85MnAvQe5D28fAinTtQ)
 
 | Pattern | Where | Purpose |
 |---------|-------|---------|
